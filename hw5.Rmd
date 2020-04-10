@@ -1,0 +1,83 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(forcats)
+```
+
+###1
+```{r}
+ames.liquor <- readr::read_csv("2019_Iowa_Liquor_Sales.csv")
+```
+
+###2
+```{r}
+ames.liquor$`Store Location` <- ames.liquor$`Store Location` %>% gsub(pattern="POINT (", replacement="", fixed=TRUE) %>% gsub(pattern=")", replacement="", fixed=TRUE)
+ames.liquor <- ames.liquor %>% separate(col=`Store Location`, into=c("Longitude", "Latitude"), sep=" ", convert=TRUE)
+
+ames.liquor <- ames.liquor %>% type.convert()
+
+ames.liquor <- ames.liquor %>% separate(col=`Date`, into=c("Month", "Day", "Year"), sep="/", convert=TRUE)
+```
+
+###3
+```{r}
+#a
+ames.liquor.location <- ames.liquor %>% filter(!is.na(Longitude) & !is.na(Latitude))
+ames.liquor.location %>% ggplot(aes(x=Longitude, y=Latitude)) + geom_point() + coord_map()
+
+#b
+cat_by_vol <- ames.liquor %>% 
+  filter(!is.na(`Category Name`)) %>% 
+#  mutate(fct_recode(ames.liquor$`Category Name`, "American Distilled Spirits Specialty" = "American Distilled Spirit Specialty",
+#               "American Vodkas" = "American Vodka",
+#               "Cocktails / RTD" = "Cocktails /RTD",
+#               "Imported Cordials & Liqueurs" = "Imported Cordials & Liqueur",
+#               "Imported Distilled Spirits Specialty" = "Imported Distilled Spirit Specialty",
+#               "Imported Vodkas" = "Imported Vodka")) %>%
+  select(c(`Category Name`, `Volume Sold (Gallons)`)) %>% 
+  group_by(`Category Name`) %>% 
+  summarize_all(sum, na.rm = TRUE)
+
+
+
+cat_by_vol %>% ggplot(aes(x=`Category Name`, y=`Volume Sold (Gallons)`)) + geom_bar(stat="identity") + coord_flip() + labs(title="Volume Sold by Category")
+```
+
+###4
+```{r}
+daily.sales <- ames.liquor %>% 
+  select(Month, Day, `Volume Sold (Gallons)`, `Sale (Dollars)`) %>% 
+  group_by(Month, Day) %>% 
+  add_tally(name="No. of Sales") %>%
+  summarize(`Volume Sold (Gallons)` = sum(`Volume Sold (Gallons)`), 
+            `Sale (Dollars)` = sum(`Sale (Dollars)`),
+            `No. of Sales` = mean(`No. of Sales`))
+
+daily.sales %>% select(`No. of Sales`, `Volume Sold (Gallons)`, `Sale (Dollars)`) %>% summary()
+```
+
+###5
+```{r}
+graph1 <- daily.sales %>% ggplot(aes(x=Day, y=`Volume Sold (Gallons)`)) + 
+  geom_point() + 
+  geom_smooth(method="loess") + 
+  facet_wrap(daily.sales$Month, 4) + 
+  ylim(0,5000)
+graph1
+```
+
+There aren't any patterns that hold for all of the months. The most drastic changes in volume sold tend to happen at the end of the month except for February, April, and November. There also tends to be very little sold the day after a large amount was sold. Sales are also lower in the summer, presumably because students aren't in Ames.
+
+###6
+```{r}
+#08/31
+#09/14
+#09/21
+#10/05
+#10/26
+#11/16
+#11/23
+graph1
+```
+
+There tends to be a sharp increase in volume sold in the days leading up to a home football game. This understandable since liquor/alcohol is part of the gameday festivities.
